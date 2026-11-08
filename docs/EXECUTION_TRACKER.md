@@ -68,44 +68,44 @@ If any of these is wrong, say so. Steps that depend on it are marked.
 | P0-3 | `SpoutReceiverCore` shared by Input + Texture; persistent backend, `WAITING` + 250 ms poll, no `ReleaseReceiver()` | B1, B2 | R | ☑ | `e74a59d` | R | Loopback D3D12 + Vulkan pass incl. source switch and resize; no backend churn |
 | P0-4 | Shared ref-counted D3D11On12 device per RenderingDevice | B1 | R | ☑ | `ef95e9d` | R | One D3D11On12 device per RD device; LUID-matched D3D11 device for Vulkan |
 | P0-5 | D3D12 send via owned intermediate + typed shared texture; in-place resize / rename / source switch | B3, B9, issue 1 | R | ☑ | `81cedad` `91810e8` | R | Enhanced barriers: our own simultaneous-access texture (stays COMMON). Debug layer clean except D3D11On12's own ReflectSharedProperties message (once per wrap). Legacy-barrier path not testable on this machine |
-| P0-6 | *Spike:* D3D12 1-copy send via `UnwrapUnderlyingResource` | perf | R | ☐ |  |  | Deferred: measure first (T-5) — copy cost looks small next to noise |
+| P0-6 | *Spike:* D3D12 1-copy send via `UnwrapUnderlyingResource` | perf | R | ✗ |  | – | Not needed for now: per-send CPU is 0.22–0.28 ms on D3D12; GPU copy ~17–66 MB of traffic. Revisit if the show machine is GPU-bound |
 | P0-7 | D3D12 receive via format-matched intermediate; no `IsUpdated` short-circuit | B4 | R | ☑ | `81cedad` `91810e8` | R | D3D12 receive works (was never written on master); format-matched source |
 | P0-8 | Vulkan backend on the helpers; `texture_create_from_extension`; no private submits/waits; LUID-matched D3D11 device; drop `SpoutVK.cpp` | B5–B8, B11, B13 | R | ☑ | `f6d06d2` `e74a59d` | R | Vulkan: no submits/waits; validation down from 135 errors to 4 per run (memoryTypeIndex for KMT import, which needs the extension Godot doesn't enable — §1.4) |
-| P0-9 | Lifecycle: enter/exit tree, `PREDELETE`, null-safe singletons, release before RD shutdown, render-thread hop | B10 | R | ◐ | `e74a59d` | R | Null-safe teardown, module-shutdown release, deferred GPU release (fixed a crash when the last sender is freed). Exit/scene-change tests in T-3 |
-| P0-10 | Comments on every handle-sharing / sync decision | req. | B | ☐ | | | Done inside each commit; this row is the final review pass |
+| P0-9 | Lifecycle: enter/exit tree, `PREDELETE`, null-safe singletons, release before RD shutdown, render-thread hop | B10 | R | ☑ | `e74a59d` `91810e8` | R | `tests/lifecycle_test.gd`: 30 scene changes, quit with a SpoutTexture held in a static var: clean exit, video memory flat on both backends |
+| P0-10 | Comments on every handle-sharing / sync decision | req. | B | ☑ | all P0 commits | B | Sync/handle comments in SpoutD3D12Gpu.cpp, SpoutVulkanGpu.cpp, SpoutD3D11.hpp, SpoutCore, SpoutShare |
 
 ## P1: remaining must-haves
 
 | ID | Step | Needs | Status | Commit | Verified | Notes |
 |---|---|---|---|---|---|---|
-| P1-1 | `enabled`, `active_in_editor`, runtime `channel_name` rename | R | ☐ | | | D4, D5 |
-| P1-2 | `format` (AUTO / RGBA8 / RGBA16F) end to end | R | ☐ | | | |
-| P1-3 | Compute pass: `flip_y`, `alpha_mode`, `color_conversion`, format conversion | R | ☐ | | | |
-| P1-4 | sRGB view on received 8-bit textures | R | ☐ | | | Possible engine quirk, see plan §2.2 |
-| P1-5 | Static `get_sender_list()` + inspector suggestions | R | ☐ | | | |
-| P1-6 | Receiver status API + signals + `clear_on_disconnect` | R | ☐ | | | |
-| P1-7 | Sender status API + signals | R | ☐ | | | |
-| P1-8 | README: matrix, node reference, threading, limitations, multi-GPU | B | ☐ | | | |
-| P1-9 | Multi-GPU diagnostics: adapter log, `get_adapter_name()`, "different GPU" state | R | ☐ | | | |
+| P1-1 | `enabled`, `active_in_editor`, runtime `channel_name` rename | R | ☑ | `631feab` `9e55c14` | R | `tests/api_test.gd`: rename, enable/disable |
+| P1-2 | `format` (AUTO / RGBA8 / RGBA16F) end to end | R | ☑ | `631feab` | R | api_test: RGBA16F end to end |
+| P1-3 | Compute pass: `flip_y`, `alpha_mode`, `color_conversion`, format conversion | R | ☑ | `e74a59d` `631feab` | R | api_test: flip (both sides), opaque, linear→sRGB |
+| P1-4 | sRGB view on received 8-bit textures | R | ☑ | `e74a59d` | R | `tests/srgb_material_test.gd`: 3D material = TextureRect = sent value (200), D3D12 + Vulkan, under validation |
+| P1-5 | Static `get_sender_list()` + inspector suggestions | R | ☑ | `9e55c14` | R | api_test: sender list; inspector suggestions via _validate_property (not yet looked at in the editor UI) |
+| P1-6 | Receiver status API + signals + `clear_on_disconnect` | R | ☑ | `9e55c14` | R | api_test: signals, state, info |
+| P1-7 | Sender status API + signals | R | ☑ | `631feab` | R | api_test: signals, active name |
+| P1-8 | README: matrix, node reference, threading, limitations, multi-GPU | B | ☑ | `accb9d7` | B |  |
+| P1-9 | Multi-GPU diagnostics: adapter log, `get_adapter_name()`, "different GPU" state | R | ☑ | `a8a83f4` `e74a59d` | R | Cross-process dGPU→iGPU: one warning, STATE_ERROR, no churn |
 
 ## P2: nice-to-have (after P0/P1 pass the soak test)
 
 | ID | Step | Needs | Status | Commit | Verified | Notes |
 |---|---|---|---|---|---|---|
-| P2-1 | OpenGL input (`texture_create_from_native_handle`) or documented "why not" | R | ☐ | | | |
-| P2-2 | `max_fps` send cap | R | ☐ | | | |
-| P2-3 | `sync_mode = SAFE` | R | ☐ | | | Only if frame-fence timing verifies |
-| P2-4 | Demo stats overlay (resolution, fps, CPU µs, GPU time, adapter) | R | ☐ | | | |
+| P2-1 | OpenGL input (`texture_create_from_native_handle`) or documented "why not" | R | ✗ | `accb9d7` | – | Not implemented; route documented in README (own GL texture + texture_create_from_native_handle). Can be done later |
+| P2-2 | `max_fps` send cap | R | ☑ | `631feab` | B | `max_fps` (skips sends, never sleeps); no dedicated test yet |
+| P2-3 | `sync_mode = SAFE` | R | ✗ |  | – | Needs a GPU fence of Godot's frame; not available to extensions. FAST semantics (= stock Spout DX11 senders) documented |
+| P2-4 | Demo stats overlay (resolution, fps, CPU µs, GPU time, adapter) | R | ☑ | `ecf9745` | R | Stats overlay in all new demo scenes |
 
 ## Tests, demo, measurements
 
 | ID | Step | Needs | Status | Commit | Verified | Notes |
 |---|---|---|---|---|---|---|
-| T-1 | `send_animated.tscn` (default 1920×1080, `resolution` switch to 7680×1080) | R | ☐ | | | |
-| T-2 | `receive_material.tscn` (3D `source_color` + TextureRect, sender picker) | R | ☐ | | | |
-| T-3 | `stress_switch_resize.tscn` (resize / switch / rename / toggle, 2 senders + 2 receivers) | R | ☐ | | | |
-| T-4 | `soak.tscn` with periodic logging | R | ☐ | | | |
-| T-5 | Benchmark after P0 (same matrix as 0-5) | R | ☐ | | | |
+| T-1 | `send_animated.tscn` (default 1920×1080, `resolution` switch to 7680×1080) | R | ☑ | `ecf9745` | R | Ran at 1920×1080 and 7680×1080 on D3D12 and Vulkan; no errors or leaks at exit |
+| T-2 | `receive_material.tscn` (3D `source_color` + TextureRect, sender picker) | R | ☑ | `ecf9745` | R | Ran without sender (waiting) on Vulkan |
+| T-3 | `stress_switch_resize.tscn` (resize / switch / rename / toggle, 2 senders + 2 receivers) | R | ☑ | `ecf9745` `ea26290` | R | 75 s with D3D12 debug layers: 24 steps, events consistent, no new validation messages |
+| T-4 | `soak.tscn` with periodic logging | R | ◐ | `ecf9745` | R | 10-minute local run in progress; the 1 h run with Resolume is T-8 |
+| T-5 | Benchmark after P0 (same matrix as 0-5) | R | ☑ | `04e6be6` | R | CPU per send: D3D12 0.22–0.28 ms p50, Vulkan ~0.05 ms (was ~4.8 ms frame cost). GPU time not measurable with RD timestamps (graph reorders) |
 | T-6 | Your manual checklist pass, D3D12 build (plan §5.2), 1920 and 7680 | U | ☐ | | | |
 | T-7 | Your manual checklist pass, Vulkan build | U | ☐ | | | |
 | T-8 | Soak: 1 h @ 1920×1080 (was 8 h, changed 2026-11-08); 2 h @ 7680×1080 RGBA8; 1 h RGBA16F | U | ☐ | | | Command: `godot --path demo res://scenes/soak.tscn -- --seconds=3600 --log_every=60` |
@@ -136,6 +136,15 @@ Filled in by 0-5 (baseline) and T-5 (after P0). GPU and driver noted per row.
 
 Method: `tests/send_benchmark.gd`, vsync off, 6 alternating off/on blocks × 400 frames (90 warm-up), pooled frame-time p50 difference. GPU: Quadro T2000 (laptop, power states not pinned, so expect ±0.5 ms noise). Godot 4.7.2.
 
+## Findings after Step 0
+
+13. **Cross-process (`tests/cross_process_test.gd`), same GPU:** D3D12→D3D12, D3D12→Vulkan, Vulkan→D3D12 all pass: 0 garbage frames, longest repeat 4 frames, receiver connects within 80 ms.
+14. **Different GPUs** (sender on the Quadro, receiver on the Intel iGPU): one warning, STATE_ERROR, no churn.
+15. **Vulkan on the Intel iGPU is not possible**: its driver imports D3D11 *NT* handles only, Spout uses KMT handles (probe `vkGetPhysicalDeviceImageFormatProperties2`, all usages). Documented. D3D12 on the Intel iGPU works end to end.
+16. **B13** (LUID-matched D3D11 device) is only partly verifiable here: the device is created on the right adapter (Intel), but that GPU can't import anyway. Needs a machine with two NVIDIA/AMD GPUs to verify fully.
+17. **Godot stores premultiplied colour** where semi-transparent things are drawn into a transparent viewport (seen in api_test). Documented; a straight-alpha conversion option could be added if Resolume needs it.
+18. **At quit**, our last Vulkan images are left to the OS: Godot flushes its last frame after the extension's shutdown hook, so they can't be destroyed safely earlier. The validation layer reports them once at exit.
+
 ## Step 0 findings
 
 Date: 2026-11-08. Godot 4.7.2 stable, Quadro T2000, test harness in `demo/tests/`.
@@ -160,6 +169,7 @@ Newest first. One line per commit or noteworthy event.
 
 | Date | Entry |
 |---|---|
+| 2026-11-08 | P1 done (`631feab` `9e55c14`), API/sRGB/lifecycle/cross-process tests, demo scenes (`ecf9745`), README (`accb9d7`). OpenGL sender being checked. |
 | 2026-11-08 | T-8 soak shortened from 8 h to 1 h at 1920×1080 (your request). |
 | 2026-11-08 | P0 core landed: `6bdb7fa` protocol helpers, `ef95e9d` shared D3D11 devices, `81cedad` D3D12 backend, `f6d06d2` Vulkan backend, `e74a59d` switch-over, `91810e8` D3D12 enhanced-barrier fix. Loopback passes on both backends. |
 | 2026-11-08 | Step 0 done: baseline build, loopback/benchmark harness, findings recorded. Tools installed via winget (CMake 4.4.4, Vulkan SDK 1.4.363, Godot 4.7.2). |
