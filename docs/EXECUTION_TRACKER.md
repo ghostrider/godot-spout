@@ -108,7 +108,7 @@ If any of these is wrong, say so. Steps that depend on it are marked.
 | T-5 | Benchmark after P0 (same matrix as 0-5) | R | ☐ | | | |
 | T-6 | Your manual checklist pass, D3D12 build (plan §5.2), 1920 and 7680 | U | ☐ | | | |
 | T-7 | Your manual checklist pass, Vulkan build | U | ☐ | | | |
-| T-8 | Soak: 8 h @ 1920×1080; 2 h @ 7680×1080 RGBA8; 1 h RGBA16F | U | ☐ | | | |
+| T-8 | Soak: 1 h @ 1920×1080 (was 8 h, changed 2026-11-08); 2 h @ 7680×1080 RGBA8; 1 h RGBA16F | U | ☐ | | | Command: `godot --path demo res://scenes/soak.tscn -- --seconds=3600 --log_every=60` |
 
 ## Follow-ups (outside this repo)
 
@@ -160,6 +160,7 @@ Newest first. One line per commit or noteworthy event.
 
 | Date | Entry |
 |---|---|
+| 2026-11-08 | T-8 soak shortened from 8 h to 1 h at 1920×1080 (your request). |
 | 2026-11-08 | P0 core landed: `6bdb7fa` protocol helpers, `ef95e9d` shared D3D11 devices, `81cedad` D3D12 backend, `f6d06d2` Vulkan backend, `e74a59d` switch-over, `91810e8` D3D12 enhanced-barrier fix. Loopback passes on both backends. |
 | 2026-11-08 | Step 0 done: baseline build, loopback/benchmark harness, findings recorded. Tools installed via winget (CMake 4.4.4, Vulkan SDK 1.4.363, Godot 4.7.2). |
 | 2026-11-08 | Tracker created. Plan updated with B13 / multi-GPU (§1.5, P1-9). Build tools missing (CMake, Vulkan SDK, Godot). |

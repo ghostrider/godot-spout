@@ -454,7 +454,7 @@ Tools: Resolume Arena, Spout2 demo sender/receiver (`SpoutSender.exe`,
 - [ ] Run once with `--gpu-validation`: zero D3D12/Vulkan validation errors from our code
 
 **Soak**
-- [ ] 8 h `soak.tscn` at 1920 × 1080 + Resolume connected: memory flat (±5 %), no frame-time drift, no device lost
+- [ ] 1 h `soak.tscn` at 1920 × 1080 (shortened from 8 h on 2026-11-08) + Resolume connected: memory flat (±5 %), no frame-time drift, no device lost
 - [ ] 2 h `soak.tscn` at 7680 × 1080 (RGBA8, then 1 h RGBA16F): same criteria
 
 ### 5.3 Performance measurement
