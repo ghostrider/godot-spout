@@ -54,8 +54,8 @@ If any of these is wrong, say so. Steps that depend on it are marked.
 |---|---|---|---|---|---|---|
 | 0-1 | Build current master (D3D12 + Vulkan + OpenGL); capture Spout log | B | ☑ | – | B | VS 18 + CMake 4.4.4 + Vulkan SDK 1.4.363; builds clean. Spout log file deferred to P0-2 (env-var switch) |
 | 0-2 | Confirm B12 cause (preloaded ViewportTexture → placeholder RID) | R | ☑ | – | R | `tests/viewport_texture_check.gd`: preloaded = different resource, size 0, RD 4×4; scene copy = 1152×648 |
-| 0-3 | Confirm B4 (D3D12 receive frozen?), B9 (shared format 27?), B3/B7 under `--gpu-validation` | R | ◐ | – | R | B4 confirmed (receiver never written). Vulkan: 135 validation errors (wrong old layouts, blit without TRANSFER usage). D3D12: no messages reported — debug-layer status unproven, check moved into P0-5. B9 to be read from the shared texture desc in P0-5 |
-| 0-4 | Check whether Godot's D3D12 driver uses enhanced barriers on the T2000 | R | ☑ | – | R | Verbose log: "Relaxed casting supported (but disabled for now)", no enhanced-barrier line → legacy states + TYPELESS (inferred; confirm via info queue in P0-5) |
+| 0-3 | Confirm B4 (D3D12 receive frozen?), B9 (shared format 27?), B3/B7 under `--gpu-validation` | R | ☑ | – | R | B4 confirmed. Vulkan: 135 validation errors. D3D12 messages only surface via GODOT_SPOUT_D3D12_DEBUG (Godot prints none): with it, the debug layer is active. **Correction:** Godot uses *enhanced* barriers on the T2000 (see findings 10) |
+| 0-4 | Check whether Godot's D3D12 driver uses enhanced barriers on the T2000 | R | ☑ | – | R | **Inference was wrong:** Godot uses enhanced barriers here (debug layer shows BARRIER_LAYOUT_*). Handled in P0-5 (`91810e8`) |
 | 0-5 | Baseline cost: D3D12 + Vulkan × 1920×1080 + 7680×1080 × RGBA8/16F | R | ☑ | – | R | See §Measurements. Vulkan +3.4–5.1 ms/frame. D3D12 numbers noisy on this laptop |
 | 0-6 | Write Step 0 findings into this file; adjust the plan if an audit finding is wrong | – | ☑ | – | – | See §Step 0 findings |
 
@@ -63,15 +63,15 @@ If any of these is wrong, say so. Steps that depend on it are marked.
 
 | ID | Step | Fixes | Needs | Status | Commit | Verified | Notes |
 |---|---|---|---|---|---|---|---|
-| P0-1 | Demo: `SubViewport.get_texture()` instead of preloaded `.tres` | B12 | R | ☐ | | | |
-| P0-2 | `SpoutShareSender` / `SpoutShareReceiver` protocol helpers (compiled, unused) | prep | B | ☐ | | | |
-| P0-3 | `SpoutReceiverCore` shared by Input + Texture; persistent backend, `WAITING` + 250 ms poll, no `ReleaseReceiver()` | B1, B2 | R | ☐ | | | |
-| P0-4 | Shared ref-counted D3D11On12 device per RenderingDevice | B1 | R | ☐ | | | |
-| P0-5 | D3D12 send via owned intermediate + typed shared texture; in-place resize / rename / source switch | B3, B9, issue 1 | R | ☐ | | | Depends on 0-4 |
-| P0-6 | *Spike:* D3D12 1-copy send via `UnwrapUnderlyingResource` | perf | R | ☐ | | | May be `✗` |
-| P0-7 | D3D12 receive via format-matched intermediate; no `IsUpdated` short-circuit | B4 | R | ☐ | | | Depends on 0-4 |
-| P0-8 | Vulkan backend on the helpers; `texture_create_from_extension`; no private submits/waits; LUID-matched D3D11 device; drop `SpoutVK.cpp` | B5–B8, B11, B13 | R | ☐ | | | D2 |
-| P0-9 | Lifecycle: enter/exit tree, `PREDELETE`, null-safe singletons, release before RD shutdown, render-thread hop | B10 | R | ☐ | | | |
+| P0-1 | Demo: `SubViewport.get_texture()` instead of preloaded `.tres` | B12 | R | ☑ | `1e6c214` | R | `tests/viewport_texture_check.gd` presses both demo buttons; sender gets the 1152×648 viewport |
+| P0-2 | `SpoutShareSender` / `SpoutShareReceiver` protocol helpers (compiled, unused) | prep | B | ☑ | `6bdb7fa` | B | Exercised from P0-3 on |
+| P0-3 | `SpoutReceiverCore` shared by Input + Texture; persistent backend, `WAITING` + 250 ms poll, no `ReleaseReceiver()` | B1, B2 | R | ☑ | `e74a59d` | R | Loopback D3D12 + Vulkan pass incl. source switch and resize; no backend churn |
+| P0-4 | Shared ref-counted D3D11On12 device per RenderingDevice | B1 | R | ☑ | `ef95e9d` | R | One D3D11On12 device per RD device; LUID-matched D3D11 device for Vulkan |
+| P0-5 | D3D12 send via owned intermediate + typed shared texture; in-place resize / rename / source switch | B3, B9, issue 1 | R | ☑ | `81cedad` `91810e8` | R | Enhanced barriers: our own simultaneous-access texture (stays COMMON). Debug layer clean except D3D11On12's own ReflectSharedProperties message (once per wrap). Legacy-barrier path not testable on this machine |
+| P0-6 | *Spike:* D3D12 1-copy send via `UnwrapUnderlyingResource` | perf | R | ☐ |  |  | Deferred: measure first (T-5) — copy cost looks small next to noise |
+| P0-7 | D3D12 receive via format-matched intermediate; no `IsUpdated` short-circuit | B4 | R | ☑ | `81cedad` `91810e8` | R | D3D12 receive works (was never written on master); format-matched source |
+| P0-8 | Vulkan backend on the helpers; `texture_create_from_extension`; no private submits/waits; LUID-matched D3D11 device; drop `SpoutVK.cpp` | B5–B8, B11, B13 | R | ☑ | `f6d06d2` `e74a59d` | R | Vulkan: no submits/waits; validation down from 135 errors to 4 per run (memoryTypeIndex for KMT import, which needs the extension Godot doesn't enable — §1.4) |
+| P0-9 | Lifecycle: enter/exit tree, `PREDELETE`, null-safe singletons, release before RD shutdown, render-thread hop | B10 | R | ◐ | `e74a59d` | R | Null-safe teardown, module-shutdown release, deferred GPU release (fixed a crash when the last sender is freed). Exit/scene-change tests in T-3 |
 | P0-10 | Comments on every handle-sharing / sync decision | req. | B | ☐ | | | Done inside each commit; this row is the final review pass |
 
 ## P1: remaining must-haves
@@ -149,6 +149,9 @@ Date: 2026-11-08. Godot 4.7.2 stable, Quadro T2000, test harness in `demo/tests/
 7. **The two bundled copies of Spout's helper sources are byte-identical**, so linking SpoutDX_static and SpoutVK_static together is not an ODR problem. It goes away with P0-8 anyway.
 8. **New: minimum Godot version (D3).** godot-cpp is synced to the 4.6 API. A godot-cpp build only runs on engines ≥ its API version, so `compatibility_minimum = "4.3"` in the `.gdextension` is already wrong on master. Proposed: set it to `4.6` (small separate commit). This changes D3; **needs your OK**.
 9. **Multi-GPU:** Godot picked the Quadro (device #0) on both backends.
+10. **Correction to 4 and 6 (found during P0-5):** with `GODOT_SPOUT_D3D12_DEBUG=1 --gpu-validation` the D3D12 debug layer *is* active, and it shows Godot using **enhanced barriers** (`D3D12_BARRIER_LAYOUT_*`). D3D11On12 records legacy barriers, which may only touch a texture in the COMMON layout. Fixed by creating our textures with `ALLOW_SIMULTANEOUS_ACCESS` (Godot emits no barriers for them) — commit `91810e8`.
+11. **Crash found and fixed:** releasing GPU objects right after waiting for the queue crashed Godot when the last sender was freed, because the frame Godot was still *recording* referenced them. All our GPU objects are now released 4 frames later instead (`spout_defer_release`).
+12. **Benchmark method:** frame-time differences at ~1000 fps on this laptop swing by ±2 ms between runs (GPU clocks not pinned). A quick run after P0 showed Vulkan at +0.05 ms/frame (was +4.8 ms), D3D12 at +0.05 ms; a full matrix run right after gave values between 0.04 and 4.6 ms with no pattern. T-5 switches to measuring our own work: CPU time in the handlers and GPU timestamps around our copies.
 
 
 ## Log
@@ -157,5 +160,6 @@ Newest first. One line per commit or noteworthy event.
 
 | Date | Entry |
 |---|---|
+| 2026-11-08 | P0 core landed: `6bdb7fa` protocol helpers, `ef95e9d` shared D3D11 devices, `81cedad` D3D12 backend, `f6d06d2` Vulkan backend, `e74a59d` switch-over, `91810e8` D3D12 enhanced-barrier fix. Loopback passes on both backends. |
 | 2026-11-08 | Step 0 done: baseline build, loopback/benchmark harness, findings recorded. Tools installed via winget (CMake 4.4.4, Vulkan SDK 1.4.363, Godot 4.7.2). |
 | 2026-11-08 | Tracker created. Plan updated with B13 / multi-GPU (§1.5, P1-9). Build tools missing (CMake, Vulkan SDK, Godot). |
