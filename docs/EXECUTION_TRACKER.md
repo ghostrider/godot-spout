@@ -104,7 +104,7 @@ If any of these is wrong, say so. Steps that depend on it are marked.
 | T-1 | `send_animated.tscn` (default 1920×1080, `resolution` switch to 7680×1080) | R | ☑ | `ecf9745` | R | Ran at 1920×1080 and 7680×1080 on D3D12 and Vulkan; no errors or leaks at exit |
 | T-2 | `receive_material.tscn` (3D `source_color` + TextureRect, sender picker) | R | ☑ | `ecf9745` | R | Ran without sender (waiting) on Vulkan |
 | T-3 | `stress_switch_resize.tscn` (resize / switch / rename / toggle, 2 senders + 2 receivers) | R | ☑ | `ecf9745` `ea26290` | R | 75 s with D3D12 debug layers: 24 steps, events consistent, no new validation messages |
-| T-4 | `soak.tscn` with periodic logging | R | ◐ | `ecf9745` | R | 10-minute local run in progress; the 1 h run with Resolume is T-8 |
+| T-4 | `soak.tscn` with periodic logging | R | ☑ | `ecf9745` | R | 10 min local (D3D12, 1920×1080): 60 fps, video 53.5 MB / static 49.3 MB flat, 35,959 sent, 0 skipped, 0 disconnects/errors. 1 h with Resolume = T-8 |
 | T-5 | Benchmark after P0 (same matrix as 0-5) | R | ☑ | `04e6be6` | R | CPU per send: D3D12 0.22–0.28 ms p50, Vulkan ~0.05 ms (was ~4.8 ms frame cost). GPU time not measurable with RD timestamps (graph reorders) |
 | T-6 | Your manual checklist pass, D3D12 build (plan §5.2), 1920 and 7680 | U | ☐ | | | |
 | T-7 | Your manual checklist pass, Vulkan build | U | ☐ | | | |
@@ -143,6 +143,9 @@ Method: `tests/send_benchmark.gd`, vsync off, 6 alternating off/on blocks × 400
 15. **Vulkan on the Intel iGPU is not possible**: its driver imports D3D11 *NT* handles only, Spout uses KMT handles (probe `vkGetPhysicalDeviceImageFormatProperties2`, all usages). Documented. D3D12 on the Intel iGPU works end to end.
 16. **B13** (LUID-matched D3D11 device) is only partly verifiable here: the device is created on the right adapter (Intel), but that GPU can't import anyway. Needs a machine with two NVIDIA/AMD GPUs to verify fully.
 17. **Godot stores premultiplied colour** where semi-transparent things are drawn into a transparent viewport (seen in api_test). Documented; a straight-alpha conversion option could be added if Resolume needs it.
+19. **B15 (new, fixed in `3c5c584`): OpenGL never sent viewports.** In the Compatibility renderer a ViewportTexture's RID is a proxy without a GL texture name (`texture_get_native_handle` → 0; master made the same call). SpoutOutput now sends the viewport's render target. OpenGL → D3D12 cross-process passes, image upright.
+20. **Builds:** Debug and Release x64 (Vulkan + OpenGL ON) build cleanly here. ARM64 can't be built on this machine (VS ARM64 tools not installed); the CI ARM64 job will be the first ARM64 build of the new code.
+21. **Final regression (all automated tests, D3D12 + Vulkan):** api_test (21 checks), loopback with switch + resize, sRGB material, lifecycle, ViewportTexture check — all pass, no script errors or crashes.
 18. **At quit**, our last Vulkan images are left to the OS: Godot flushes its last frame after the extension's shutdown hook, so they can't be destroyed safely earlier. The validation layer reports them once at exit.
 
 ## Step 0 findings
@@ -169,6 +172,7 @@ Newest first. One line per commit or noteworthy event.
 
 | Date | Entry |
 |---|---|
+| 2026-11-08 | OpenGL viewport sending fixed (B15, `3c5c584`); orientation check in the two-process test; 10-min soak clean; final regression green. **Open for you:** T-6/T-7/T-8 with Resolume, D3 (`compatibility_minimum`), pushing for CI, F1/F2. |
 | 2026-11-08 | P1 done (`631feab` `9e55c14`), API/sRGB/lifecycle/cross-process tests, demo scenes (`ecf9745`), README (`accb9d7`). OpenGL sender being checked. |
 | 2026-11-08 | T-8 soak shortened from 8 h to 1 h at 1920×1080 (your request). |
 | 2026-11-08 | P0 core landed: `6bdb7fa` protocol helpers, `ef95e9d` shared D3D11 devices, `81cedad` D3D12 backend, `f6d06d2` Vulkan backend, `e74a59d` switch-over, `91810e8` D3D12 enhanced-barrier fix. Loopback passes on both backends. |
