@@ -3,6 +3,62 @@ Godot Spout Addon via GDExtension
 Send Godot textures to Spout receivers (Resolume Arena, TouchDesigner, OBS,
 ...) and receive Spout senders as Godot textures, on Windows.
 
+> **About this fork.** This is a fork of
+> [buresu/godot-spout](https://github.com/buresu/godot-spout), reworked for
+> live VJ use: Godot renders up to 7680×1080 at 60 fps, sends it to Resolume
+> Arena and receives Resolume's output back, all night without leaks or
+> stalls. It fixes several bugs that are still in the original and adds
+> runtime control, a sender list and signals.
+>
+> We've offered the changes to the original project
+> ([buresu/godot-spout#2](https://github.com/buresu/godot-spout/issues/2))
+> and will send them as a pull request. **Once they are merged upstream, this
+> fork will be deleted**, so please use the original repository again then.
+
+## What's different from the original
+
+**Fixes**, and why they mattered for live use:
+- **Switching the source at runtime gave an empty texture** (the original's
+  known issue 1). The demo preloaded a `ViewportTexture` resource that is never
+  connected to the scene's viewport. The demo is fixed, and switching the source
+  no longer re-creates the sender, so receivers like Resolume never lose it.
+- **D3D12 receiving never wrote the texture**: the received image never
+  changed. It works now.
+- **Vulkan sending waited for the GPU every frame**: about 4.8 ms per frame
+  per sender, a third of a 60 fps frame. It now costs about 0.05 ms of CPU
+  time, with no GPU wait.
+- **Vulkan renamed the sender and changed Spout's active sender every
+  frame**, so receivers addressing it by name lost it after a resize, and
+  several receivers interfered with each other.
+- **OpenGL (Compatibility renderer) never sent viewports.** It does now.
+- **A disappearing sender froze Godot for 67 ms** inside Spout. Receivers now
+  wait without blocking, checking 4 times a second.
+- **D3D12 interop could put textures into a state Godot doesn't expect**
+  (reported by the D3D12 debug layer on GPUs with enhanced barriers). It is
+  clean now.
+- **GPU objects were re-created on every setting change or error**, and
+  destructors could crash at exit. Nothing is re-created per frame any more,
+  GPU objects are released a few frames later instead of forcing GPU waits,
+  and shutdown is clean.
+
+**New:**
+- Sender name, source, size, `enabled` and format can change at runtime; the
+  sender stays in the Spout list throughout.
+- RGBA8 / RGBA16F output, flip, forced opaque alpha, linear↔sRGB conversion,
+  a frame-rate cap.
+- Receivers: a sender list (in GDScript and as inspector suggestions),
+  automatic reconnect, connection state, signals for connect, disconnect, new
+  frames and errors.
+- Several senders and receivers side by side.
+- Multi-GPU: textures are shared on the GPU Godot runs on, and a sender on
+  another GPU gives one clear warning.
+- Demo scenes with a stats overlay, automated tests, a soak test, and this
+  README.
+
+The code is restructured into a shared core plus thin D3D12, Vulkan and
+OpenGL layers. Design notes and the reasoning behind each change are in
+[`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
+
 ## Support matrix
 
 | Renderer / driver | Send | Receive | Notes |
@@ -12,14 +68,14 @@ Send Godot textures to Spout receivers (Resolume Arena, TouchDesigner, OBS,
 | Compatibility, **OpenGL3** | ✅ | ❌ | `GODOT_SPOUT_ENABLE_OPENGL`. Uses SpoutGL (GL/DX interop, CPU fallback if the driver has no interop). |
 
 Tested with Godot 4.7.2 on Windows 11 (NVIDIA Quadro T2000; Intel UHD for
-D3D12), Godot to Godot in one process and across processes. Testing with
-Resolume Arena and other Spout applications is in progress (checklist in
-`docs/IMPLEMENTATION_PLAN.md` §5.2). The extension is built against
+D3D12), Godot to Godot in one process and across processes, and with
+Resolume Arena in a live setup (it also recovered by itself after Resolume
+stalled under heavy effect chains). The extension is built against
 godot-cpp for Godot 4.6.
 
 ## Build
 ```
-git clone --recursive https://github.com/buresu/godot-spout.git
+git clone --recursive https://github.com/ghostrider/godot-spout.git
 cd godot-spout
 mkdir build && cd build
 cmake -G "Visual Studio 18 2026" ..
@@ -29,7 +85,7 @@ cmake --build . --config [Debug|Release] --target install
 ## Build with Vulkan
 ```
 scoop install vulkan
-git clone --recursive https://github.com/buresu/godot-spout.git
+git clone --recursive https://github.com/ghostrider/godot-spout.git
 cd godot-spout
 mkdir build && cd build
 cmake -G "Visual Studio 18 2026" .. -DGODOT_SPOUT_ENABLE_VULKAN=ON
@@ -38,7 +94,7 @@ cmake --build . --config [Debug|Release] --target install
 
 ## Build with OpenGL
 ```
-git clone --recursive https://github.com/buresu/godot-spout.git
+git clone --recursive https://github.com/ghostrider/godot-spout.git
 cd godot-spout
 mkdir build && cd build
 cmake -G "Visual Studio 18 2026" .. -DGODOT_SPOUT_ENABLE_OPENGL=ON
