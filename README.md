@@ -10,9 +10,9 @@ Send Godot textures to Spout receivers (Resolume Arena, TouchDesigner, OBS,
 > stalls. It fixes several bugs that are still in the original and adds
 > runtime control, a sender list and signals.
 >
-> We've offered the changes to the original project
-> ([buresu/godot-spout#2](https://github.com/buresu/godot-spout/issues/2))
-> and will send them as a pull request. **Once they are merged upstream, this
+> The changes are submitted to the original project as a pull request
+> ([buresu/godot-spout#3](https://github.com/buresu/godot-spout/pull/3)). **Once
+> it is merged, this
 > fork will be deleted**, so please use the original repository again then.
 
 ## What's different from the original
